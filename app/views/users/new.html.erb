@@ -1,0 +1,22 @@
+<%= form_for @user, :html => { :class => "piece" } do |f| %>
+  <%= f.error_messages :header_message => false, :message => false %>
+  
+  <label>
+    <span>Email:</span>
+    <%= f.text_field :email %>
+  </label>
+
+  <label>
+    <span>Password:</span>
+    <%= f.password_field :password, :autocomplete => "off" %>
+  </label>
+  
+  <label>
+    <span>Password again:</span>
+    <%= f.password_field :password_confirmation, :autocomplete => "off" %>
+  </label>
+
+  <footer>
+    <button class="right">Save</button>
+  </footer>
+<% end %>

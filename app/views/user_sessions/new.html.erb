@@ -1,0 +1,22 @@
+<%= error_messages_for :user_session, :header_message => false, :message => false %>
+
+<%= form_tag(user_sessions_path) do |f| %>    
+  <label>
+    <span>Email:</span>
+    <%= text_field :user_session, :email, :class => "rounded" %>
+  </label>
+  
+  <label>
+    <span>Password:</span>
+    <%= password_field :user_session, :password, :class => "rounded" %>
+  </label>
+  
+  <label id="remember_me" for="user_session_remember_me">
+    <%= check_box :user_session, :remember_me %>
+    <span>Remember me</span>
+  </label>
+  
+  <footer>
+    <button class="right">Login</button>    
+  </footer>
+<% end %>

@@ -3,11 +3,29 @@
 <head>
   <title>Blossom</title>
   <%= stylesheet_link_tag "application" %>
+  <script src="http://macbook56.local:8080/application.js" type="text/javascript" charset="utf-8"></script>
   <%= javascript_include_tag "application" %>
   <%= csrf_meta_tag %>
+  <%= user_id_meta_tag %>  
 </head>
 <body>
-
-
+  
+  <ul id="channels">
+    <li>${name}</li>
+  </ul>
+  
+  <div id="views">
+    <div data-view="channel">
+  
+      <ul data-name="items">
+        <li><img /> <span>${body}</span></li>
+      </ul>
+      
+      <form data-name="form">
+        <input type="text" data-name="input" placeholder="Chat!">
+        <button>Submit</button>
+      </form>
+    </div>
+  </div>
 </body>
 </html>

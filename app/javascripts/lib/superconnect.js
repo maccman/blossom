@@ -1,134 +1,4 @@
-/*
- * jQuery Templating Plugin
- * Copyright 2010, John Resig
- * Dual licensed under the MIT or GPL Version 2 licenses.
- */
-(function(jQuery){
-	// Override the DOM manipulation function
-	var oldManip = jQuery.fn.domManip;
-	
-	jQuery.fn.extend({
-		render: function( data ) {
-			return this.map(function(i, tmpl){
-				return jQuery.render( tmpl, data );
-			});
-		},
-		
-		// This will allow us to do: .append( "template", dataObject )
-		domManip: function( args ) {
-			// This appears to be a bug in the appendTo, etc. implementation
-			// it should be doing .call() instead of .apply(). See #6227
-			if ( args.length > 1 && args[0].nodeType ) {
-				arguments[0] = [ jQuery.makeArray(args) ];
-			}
-
-			if ( args.length === 2 && typeof args[0] === "string" && typeof args[1] !== "string" ) {
-				arguments[0] = [ jQuery.render( args[0], args[1] ) ];
-			}
-			
-			return oldManip.apply( this, arguments );
-		}
-	});
-	
-	jQuery.extend({
-		render: function( tmpl, data ) {
-			var fn;
-			
-			// Use a pre-defined template, if available
-			if ( jQuery.templates[ tmpl ] ) {
-				fn = jQuery.templates[ tmpl ];
-				
-			// We're pulling from a script node
-			} else if ( tmpl.nodeType ) {
-				var node = tmpl, elemData = jQuery.data( node );
-				fn = elemData.tmpl || jQuery.tmpl( node.innerHTML );
-			}
-
-			fn = fn || jQuery.tmpl( tmpl );
-			
-			// We assume that if the template string is being passed directly
-			// in the user doesn't want it cached. They can stick it in
-			// jQuery.templates to cache it.
-
-			if ( jQuery.isArray( data ) ) {
-				return jQuery.map( data, function( data, i ) {
-					return fn.call( data, jQuery, data, i );
-				});
-
-			} else {
-				return fn.call( data, jQuery, data, 0 );
-			}
-		},
-		
-		// You can stick pre-built template functions here
-		templates: {},
-
-		/*
-		 * For example, someone could do:
-		 *   jQuery.templates.foo = jQuery.tmpl("some long templating string");
-		 *   $("#test").append("foo", data);
-		 */
-
-		tmplcmd: {
-			"each": {
-				_default: [ null, "$i" ],
-				prefix: "jQuery.each($1,function($2){with(this){",
-				suffix: "}});"
-			},
-			"if": {
-				prefix: "if($1){",
-				suffix: "}"
-			},
-			"else": {
-				prefix: "}else{"
-			},
-			"html": {
-				prefix: "_.push(typeof $1==='function'?$1.call(this):$1);"
-			},
-			"=": {
-				_default: [ "this" ],
-				prefix: "_.push($.encode(typeof $1==='function'?$1.call(this):$1));"
-			}
-		},
-
-		encode: function( text ) {
-			return text != null ? document.createTextNode( text.toString() ).nodeValue : "";
-		},
-
-		tmpl: function(str, data, i) {
-			// Generate a reusable function that will serve as a template
-			// generator (and which will be cached).
-			var fn = new Function("jQuery","$data","$i",
-				"var $=jQuery,_=[];_.data=$data;_.index=$i;" +
-
-				// Introduce the data as local variables using with(){}
-				"with($data){_.push('" +
-
-				// Convert the template into pure JavaScript
-				str
-					.replace(/[\r\t\n]/g, " ")
-					.replace(/\${([^}]*)}/g, "{{= $1}}")
-					.replace(/{{(\/?)(\w+|.)(?:\((.*?)\))?(?: (.*?))?}}/g, function(all, slash, type, fnargs, args) {
-						var tmpl = jQuery.tmplcmd[ type ];
-
-						if ( !tmpl ) {
-							throw "Template not found: " + type;
-						}
-
-						var def = tmpl._default;
-
-						return "');" + tmpl[slash ? "suffix" : "prefix"]
-							.split("$1").join(args || def[0])
-							.split("$2").join(fnargs || def[1]) + "_.push('";
-					})
-				+ "');}return $(_.join('')).get();");
-
-			// Provide some basic currying to the user
-			return data ? fn.call( this, jQuery, data, i ) : fn;
-		}
-	});
-})(jQuery);
-
+//= require <jquery.tmpl>
 //= require <superclass>
 //= require <superevent>
 
@@ -139,13 +9,14 @@
  */
 var SuperConnect = new SuperClass;
 
-SuperConnect.include(SuperEvent);
 SuperConnect.include({
   init: function(element, klass, options){
     this.options    = options || {};
     this.singleton  = this.options.singleton || false;
     this.collection = !this.singleton;
     this.filter     = function(){ return true; };
+    
+    // Builders are now deprecated in favour of events
     this.builder    = this.options.builder;
     
     this.setKlass(klass);
@@ -169,16 +40,18 @@ SuperConnect.include({
     if ( !element ) return;    
     
     this.element  = jQuery(element);
-    
+        
     if (this.options.custom) return;
-    this.template = jQuery.tmpl(this.element.html());
+    this.template = this.element.template(null);
     this.element.empty();
   },
   
   setItem: function(item){
     if ( !this.singleton ) throw "Must be singleton";
+    if ( !item ) return;
     this.item   = item;
     this.filter = function(i){ return(i === item); }
+    this.render();
   },
   
   paginate: function(index, length){
@@ -190,19 +63,21 @@ SuperConnect.include({
     if ( !this.klass )   throw "Klass not set";
     if ( !this.element ) throw "Element not set";
     if ( !data ) data = this.allItems();
-        
+    
     // Generate and append elements
     var elements = this.renderTemplate(data);
     
-    this.trigger("beforeRender", elements, data);
+    this.element.trigger("beforeRender");
     
     if ( !this.options.custom ) {
       this.element.empty();
       this.element.append(elements);
+            
+      for (var i=0; i < elements.length; i++)
+        jQuery(elements[i]).trigger("render", data[i]);
     }
     
-    this.trigger("afterRender");
-    this.trigger("render");
+    this.element.trigger("render");
   },
 
   // Private functions
@@ -227,22 +102,30 @@ SuperConnect.include({
   
   renderTemplate: function(data){
     data = jQuery.makeArray(data);
-    return jQuery.map( data, this.proxy(function( data, i ) {
-  		var element  = this.template && this.template.call( data, jQuery, data, i );
-      var jElement = jQuery(element || []);
+    var result = jQuery();
+    
+    jQuery.each( data, this.proxy(function( i, data ) {
+      var element;
       
-      if (this.builder) this.builder.call(jElement, jElement, data);
+      if (this.template)
+  		  element = jQuery.tmpl(this.template, data);
+		  else
+        element = jQuery();
+
+      if (this.builder) this.builder.call(element, element, data);
       
-      jElement.attr({"data-id": data.id, "data-klass": this.klass.className});
-      jElement.data({id: data.id, klass: this.klass.className});
-      jElement.addClass("connect-item");
+      element.attr({"data-id": data.id, "data-klass": this.klass.className});
+      element.data({id: data.id, klass: this.klass.className});
+      element.addClass("connect-item");
   		
-  		return element;
+  		result = result.add(element);
   	}));
+  	
+  	return result;
   },
     
-  findItem: function(id){
-    return(this.element.find("> [data-id='" + id + "']"));
+  findItem: function(item){
+    return(this.element.findItem(item));
   },
   
   onPopulate: function(){
@@ -252,17 +135,20 @@ SuperConnect.include({
   onCreate: function(item){ 
     if ( !this.filter(item) ) return;
     var elements = this.renderTemplate(item);
-    this.element.append(elements);
-    this.trigger("render");
+    if (this.options.prepend)
+      this.element.prepend(elements);
+    else
+      this.element.append(elements);
+    elements.trigger("render", item);
+    this.element.trigger("render");
   },
   
   onUpdate: function(item){
     if ( !this.filter(item) ) return;
     if (item.id) {
-      this.findItem(item.id).replaceWith(
-        this.renderTemplate(item)
-      );
-      this.trigger("render");      
+      this.findItem(item).replaceWith(this.renderTemplate(item));
+      this.findItem(item).trigger("render", item);
+      this.element.trigger("render");
     } else {
       this.render();
     }
@@ -271,17 +157,13 @@ SuperConnect.include({
   onDestroy: function(item){
     if ( !this.filter(item) ) return;
     if (item.id) {
-      this.findItem(item.id).remove();
-      this.trigger("render");
+      this.findItem(item).remove();
+      this.element.trigger("render");
     } else {
       this.render();
     }
   }
 });
-
-SuperConnect.fn.setupEvents([
-  "beforeRender", "afterRender"
-]);
 
 (function($){
 
@@ -296,8 +178,21 @@ $.fn.item = function(){
   return(eval(klass).find(id));
 };
 
+$.fn.findItem = function(item){
+  if ( !item ) return $();
+  return(this.find("> [data-id='" + (item.id || item) + "']"));
+};
+
 $.fn.connect = function(klass, options){
   return(new SuperConnect($(this), klass, options));
+};
+
+$.fn.render = function(cb){
+  return($(this).bind("render", cb));
+};
+
+$.fn.renderItem = function(cb){
+  return($(this).delegate(".connect-item", "render", cb));
 };
 
 })(jQuery);
